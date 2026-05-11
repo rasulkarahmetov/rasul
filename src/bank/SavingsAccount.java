@@ -1,14 +1,16 @@
 package bank;
 
 public class SavingsAccount extends Account {
-
-    public SavingsAccount(String owner, double balance) {
-        super(owner, balance);
+    // Теперь конструктор принимает 3 параметра и передает их в Account
+    public SavingsAccount(String owner, String phone, double balance) {
+        super(owner, phone, balance);
     }
 
-    // теперь процент вводится снаружи
-    public void addInterest(double rate) {
-        balance = balance + (balance * rate);
+    @Override
+    public void withdraw(double amount) {
+        if (amount > 0 && balance >= amount) {
+            balance -= amount;
+        }
     }
 
     @Override

@@ -1,113 +1,100 @@
 package bank;
-
 import java.io.*;
-import java.util.ArrayList;
+import java.util.*;
 
 public class BankService {
-
     public ArrayList<Account> accounts = new ArrayList<>();
-    private ArrayList<String> transactions = new ArrayList<>();
+    public ArrayList<User> users = new ArrayList<>();
+    public ArrayList<String> history = new ArrayList<>(); // Добавили список истории
+    public User currentUser;
 
-    // добавить счет
-    public void addAccount(Account acc) {
-        accounts.add(acc);
+    public BankService() {
+        loadUsers();
+        loadHistory();
+        if (users.isEmpty()) users.add(new User("admin", "1234"));
     }
 
-    // найти счет
-    public Account findAccount(String owner) {
-        for (Account acc : accounts) {
-            if (acc.getOwner().equals(owner)) {
-                return acc;
+    public boolean authenticate(String l, String p) {
+        for (User u : users) if (u.login.equals(l) && u.password.equals(p)) { currentUser = u; return true; }
+        return false;
+    }
+
+    public void log(String message) {
+        String entry = java.time.LocalDateTime.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        ) + " | " + message;
+        history.add(entry);
+        saveHistory(entry);
+    }
+
+    public void applyInterest(double rate) {
+        for (Account a : accounts) {
+            if (a instanceof SavingsAccount) {
+                double bonus = a.getBalance() * (rate / 100);
+                a.deposit(bonus);
+                log("Начислен %: " + a.getOwner() + " (+" + String.format("%.2f", bonus) + ")");
             }
         }
+        save();
+    }
+
+    public void updateUserInfo(String nl, String np) {
+        if (currentUser != null) { currentUser.login = nl; currentUser.password = np; saveUsers(); }
+    }
+
+    public void add(Account a) { accounts.add(a); save(); }
+    public Account find(String n) {
+        for (Account a : accounts) if (a.getOwner().equalsIgnoreCase(n.trim())) return a;
         return null;
     }
 
-    // пополнение
-    public void deposit(String owner, double amount) {
-        Account acc = findAccount(owner);
-        if (acc != null) {
-            acc.deposit(amount);
-            transactions.add("Пополнение: " + owner + " +" + amount);
-        }
-    }
-
-    // снятие
-    public void withdraw(String owner, double amount) {
-        Account acc = findAccount(owner);
-        if (acc != null) {
-            acc.withdraw(amount);
-            transactions.add("Снятие: " + owner + " -" + amount);
-        }
-    }
-
-    // ===== ПЕРЕВОД =====
-    public void transfer(String from, String to, double amount) {
-        Account accFrom = findAccount(from);
-        Account accTo = findAccount(to);
-
-        if (accFrom != null && accTo != null) {
-            accFrom.withdraw(amount);
-            accTo.deposit(amount);
-
-            transactions.add("Перевод: " + from + " -> " + to + " : " + amount);
-        }
-    }
-
-    // ===== ИСТОРИЯ =====
-    public void showTransactions() {
-        if (transactions.isEmpty()) {
-            System.out.println("История пуста");
-            return;
-        }
-
-        for (String t : transactions) {
-            System.out.println(t);
-        }
-    }
-
-    // ===== ПОКАЗ СЧЕТОВ =====
-    public void showAccounts() {
-        for (Account acc : accounts) {
-            System.out.println(acc.getOwner() + " | " + acc.getBalance() + " | " + acc.getType());
-        }
-    }
-
-    // ===== SAVE =====
-    public void saveData() {
-        try (PrintWriter pw = new PrintWriter(new FileWriter("data.txt"))) {
-            for (Account acc : accounts) {
-                pw.println(acc.getOwner() + "," + acc.getBalance() + "," + acc.getType());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    // ===== LOAD =====
-    public void loadData() {
-        File file = new File("data.txt");
-        if (!file.exists()) return;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-
-                String name = parts[0];
-                double balance = Double.parseDouble(parts[1]);
-                String type = parts[2];
-
-                if (type.equals("Savings")) {
-                    accounts.add(new SavingsAccount(name, balance));
+    public void save() {
+        try (PrintWriter pw = new PrintWriter("data.txt")) {
+            for (Account a : accounts) {
+                if (a instanceof CreditAccount) {
+                    CreditAccount c = (CreditAccount) a;
+                    pw.println("CREDIT," + c.getOwner() + "," + c.getPhone() + "," + c.getBalance() + "," + c.getRate() + "," + c.getMonths());
                 } else {
-                    accounts.add(new CreditAccount(name, balance));
+                    pw.println("SAVINGS," + a.getOwner() + "," + a.getPhone() + "," + a.getBalance());
                 }
             }
+        } catch (Exception e) {}
+    }
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public void load() {
+        File f = new File("data.txt"); if (!f.exists()) return;
+        accounts.clear();
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] p = line.split(",");
+                if (p[0].equals("CREDIT")) accounts.add(new CreditAccount(p[1], p[2], Double.parseDouble(p[3]), Double.parseDouble(p[4]), Integer.parseInt(p[5])));
+                else accounts.add(new SavingsAccount(p[1], p[2], Double.parseDouble(p[3])));
+            }
+        } catch (Exception e) {}
+    }
+
+    private void saveUsers() {
+        try (PrintWriter pw = new PrintWriter("users.txt")) {
+            for (User u : users) pw.println(u.login + "," + u.password);
+        } catch (Exception e) {}
+    }
+
+    private void loadUsers() {
+        File f = new File("users.txt"); if (!f.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String l; while ((l = br.readLine()) != null) { String[] p = l.split(","); users.add(new User(p[0], p[1])); }
+        } catch (Exception e) {}
+    }
+
+    private void saveHistory(String entry) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter("history.txt", true))) { pw.println(entry); } catch (Exception e) {}
+    }
+
+    private void loadHistory() {
+        File f = new File("history.txt"); if (!f.exists()) return;
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+            String l; while ((l = br.readLine()) != null) history.add(l);
+        } catch (Exception e) {}
     }
 }

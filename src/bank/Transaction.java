@@ -1,17 +1,16 @@
 package bank;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class Transaction {
-    private String type;
-    private double amount;
+    private String text;
     private String time;
 
-    public Transaction(String type, double amount) {
-        this.type = type;
-        this.amount = amount;
-        this.time = java.time.LocalDateTime.now().toString();
+    public Transaction(String text) {
+        this.text = text;
+        this.time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
     }
 
-    public void print() {
-        System.out.println(time + " | " + type + ": " + amount);
-    }
+    @Override
+    public String toString() { return "[" + time + "] " + text; }
 }
